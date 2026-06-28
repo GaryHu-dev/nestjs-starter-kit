@@ -24,5 +24,5 @@ export default new DataSource({
   entities: Object.values(orm),
   migrations: [isProduction ? 'dist/database/migrations/*.js' : 'src/database/migrations/*.ts'],
   migrationsTableName: 'migrations',
-  ssl: isProduction ? { rejectUnauthorized: true } : false,
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: true } : false,
 });

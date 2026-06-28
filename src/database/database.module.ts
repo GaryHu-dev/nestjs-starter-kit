@@ -28,7 +28,7 @@ import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
           retryAttempts: 5,
           retryDelay: 3000,
           namingStrategy: new SnakeNamingStrategy(),
-          ssl: isProduction ? { rejectUnauthorized: true } : false,
+          ssl: configService.get<boolean>('database.ssl') ? { rejectUnauthorized: true } : false,
         };
       },
     }),
