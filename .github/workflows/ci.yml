@@ -10,10 +10,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege by default; jobs that need more elevate their own block.
+permissions:
+  contents: read
+
 jobs:
   lint-build-test:
     name: Lint · Build · Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -89,6 +94,7 @@ jobs:
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -105,6 +111,10 @@ jobs:
   codeql:
     name: CodeQL (SAST)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Code scanning is free on public repos; on private repos it needs GitHub
+    # Advanced Security, so skip it there rather than fail every run.
+    if: ${{ !github.event.repository.private }}
     permissions:
       security-events: write
       actions: read
@@ -121,6 +131,7 @@ jobs:
   docker:
     name: Docker build · Image scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
