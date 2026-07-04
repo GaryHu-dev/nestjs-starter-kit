@@ -1,11 +1,12 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { IdentityOrmEntity } from '@/database/orm/identity.orm-entity';
 import { RolePermissionOrmEntity } from '@/database/orm/role-permission.orm-entity';
 import { UserOrmEntity } from '@/database/orm/user.orm-entity';
 import { UserRoleOrmEntity } from '@/database/orm/user-role.orm-entity';
-import { AuthProvider, PermissionName, RoleName, UserStatus } from '@/shared/enums';
+import { AuthProvider, UserStatus } from '@/shared/enums';
+import { isUniqueViolation } from '@/shared/utils';
 
 export interface AuthUserView {
   id: string;
@@ -16,6 +17,19 @@ export interface AuthUserView {
   avatarUrl: string | null;
   emailVerified: boolean;
   status: UserStatus;
+  tokenVersion: number;
+}
+
+/**
+ * The per-request authorization context: current account status, token version
+ * and the user's live role/permission codes. Loaded fresh on every
+ * authenticated request so grants and revocations take effect immediately.
+ */
+export interface AuthContext {
+  status: UserStatus;
+  tokenVersion: number;
+  roles: string[];
+  permissions: string[];
 }
 
 export interface CreateUserWithIdentityInput {
@@ -27,6 +41,7 @@ export interface CreateUserWithIdentityInput {
   provider: AuthProvider;
   providerUserId: string;
   passwordHash: string | null;
+  emailVerified: boolean;
 }
 
 export interface CreateUserWithIdentityResult {
@@ -42,6 +57,8 @@ export interface IdentityWithHash {
   passwordHash: string | null;
   refreshTokenHash: string | null;
   lastLoginAt: Date | null;
+  failedLoginAttempts: number;
+  lockedUntil: Date | null;
 }
 
 export interface OAuthIdentityView {
@@ -83,7 +100,7 @@ export class AuthRepository {
           lastName: input.lastName,
           displayName: input.displayName,
           avatarUrl: input.avatarUrl,
-          emailVerified: false,
+          emailVerified: input.emailVerified,
           status: UserStatus.ACTIVE,
         });
         const savedUser = await manager.save(UserOrmEntity, user);
@@ -104,10 +121,7 @@ export class AuthRepository {
       });
     } catch (err) {
       if (err instanceof ConflictException) throw err;
-      if (
-        err instanceof QueryFailedError &&
-        (err as QueryFailedError & { code: string }).code === '23505'
-      ) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException('Email already registered');
       }
       throw err;
@@ -127,17 +141,7 @@ export class AuthRepository {
       .andWhere('identity.provider = :provider', { provider })
       .getOne();
 
-    if (!identity) return null;
-
-    return {
-      id: identity.id,
-      userId: identity.user.id,
-      provider: identity.provider,
-      providerUserId: identity.providerUserId,
-      passwordHash: identity.passwordHash,
-      refreshTokenHash: identity.refreshTokenHash,
-      lastLoginAt: identity.lastLoginAt,
-    };
+    return identity ? this.toIdentityWithHash(identity) : null;
   }
 
   async findIdentityWithHashByUserIdAndProvider(
@@ -153,8 +157,10 @@ export class AuthRepository {
       .andWhere('identity.provider = :provider', { provider })
       .getOne();
 
-    if (!identity) return null;
+    return identity ? this.toIdentityWithHash(identity) : null;
+  }
 
+  private toIdentityWithHash(identity: IdentityOrmEntity): IdentityWithHash {
     return {
       id: identity.id,
       userId: identity.user.id,
@@ -163,6 +169,8 @@ export class AuthRepository {
       passwordHash: identity.passwordHash,
       refreshTokenHash: identity.refreshTokenHash,
       lastLoginAt: identity.lastLoginAt,
+      failedLoginAttempts: identity.failedLoginAttempts,
+      lockedUntil: identity.lockedUntil,
     };
   }
 
@@ -199,33 +207,93 @@ export class AuthRepository {
     return entity ? this.toUserView(entity) : null;
   }
 
-  async findUserRolesAndPermissions(
-    userId: string,
-  ): Promise<{ roles: RoleName[]; permissions: PermissionName[] }> {
-    const userRoles = await this.userRoleRepo.find({
-      where: { user: { id: userId } },
-      relations: { role: true },
+  /**
+   * Load the live authorization context for a user: account status, token
+   * version and current role/permission codes. Returns null when the user does
+   * not exist. Called by JwtStrategy on every authenticated request.
+   */
+  async findAuthContext(userId: string): Promise<AuthContext | null> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      select: { id: true, status: true, tokenVersion: true },
     });
+    if (!user) return null;
 
-    if (userRoles.length === 0) {
-      return { roles: [], permissions: [] };
-    }
+    // Single join across user_roles → roles → role_permissions → permissions,
+    // so the whole authorization set is one query (plus the user query above)
+    // rather than a separate roles fetch and per-role permissions fetch.
+    // Intentionally uncached: a cache would reintroduce the very revocation/
+    // stale-grant delay this per-request read exists to eliminate.
+    const rows = await this.userRoleRepo
+      .createQueryBuilder('ur')
+      .innerJoin('ur.role', 'role')
+      .leftJoin('role.rolePermissions', 'rp')
+      .leftJoin('rp.permission', 'permission')
+      .where('ur.user = :userId', { userId })
+      .select('role.code', 'roleCode')
+      .addSelect('permission.code', 'permissionCode')
+      .getRawMany<{ roleCode: string; permissionCode: string | null }>();
 
-    const roleIds = userRoles.map((ur) => ur.role.id);
-    const roles = userRoles.map((ur) => ur.role.code as RoleName);
+    const roles = [...new Set(rows.map((r) => r.roleCode))];
+    const permissions = [
+      ...new Set(rows.map((r) => r.permissionCode).filter((c): c is string => c !== null)),
+    ];
 
-    const rolePermissions = await this.rolePermissionRepo
-      .createQueryBuilder('rp')
-      .innerJoinAndSelect('rp.permission', 'permission')
-      .where('rp.role_id IN (:...roleIds)', { roleIds })
-      .getMany();
+    return { status: user.status, tokenVersion: user.tokenVersion, roles, permissions };
+  }
 
-    const permissionSet = new Set<PermissionName>();
-    for (const rp of rolePermissions) {
-      permissionSet.add(rp.permission.code as PermissionName);
-    }
+  /**
+   * Invalidate every access/refresh token previously issued to a user by
+   * advancing their token version (logout-all, password change, deactivation).
+   */
+  async bumpTokenVersion(userId: string): Promise<void> {
+    await this.userRepo.increment({ id: userId }, 'tokenVersion', 1);
+  }
 
-    return { roles, permissions: Array.from(permissionSet) };
+  async updateIdentityLockState(
+    identityId: string,
+    failedLoginAttempts: number,
+    lockedUntil: Date | null,
+  ): Promise<void> {
+    await this.identityRepo.update(identityId, { failedLoginAttempts, lockedUntil });
+  }
+
+  /**
+   * Record a failed login attempt atomically.
+   *
+   * Serialised with a row-level `FOR UPDATE` lock so concurrent failures cannot
+   * lose increments (which would weaken the lockout). Resets the counter when a
+   * previous lock has already expired, so a returning user gets a fresh set of
+   * attempts rather than being re-locked on their first try.
+   */
+  async registerFailedLogin(
+    identityId: string,
+    maxAttempts: number,
+    lockoutMs: number,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const identity = await manager
+        .createQueryBuilder(IdentityOrmEntity, 'identity')
+        .setLock('pessimistic_write')
+        .where('identity.id = :id', { id: identityId })
+        .getOne();
+      if (!identity) return;
+
+      const now = Date.now();
+      const lockExpired = identity.lockedUntil !== null && identity.lockedUntil.getTime() <= now;
+      const attempts = lockExpired ? 1 : identity.failedLoginAttempts + 1;
+      const lockedUntil =
+        attempts >= maxAttempts
+          ? new Date(now + lockoutMs)
+          : lockExpired
+            ? null
+            : identity.lockedUntil;
+
+      await manager.update(IdentityOrmEntity, identityId, {
+        failedLoginAttempts: attempts,
+        lockedUntil,
+      });
+    });
   }
 
   async updateIdentityRefreshToken(
@@ -240,6 +308,41 @@ export class AuthRepository {
 
   async updateIdentityPasswordHash(identityId: string, passwordHash: string): Promise<void> {
     await this.identityRepo.update(identityId, { passwordHash });
+  }
+
+  async markEmailVerified(userId: string): Promise<void> {
+    await this.userRepo.update(userId, { emailVerified: true });
+  }
+
+  /**
+   * Atomically take over an unverified account with a verified OAuth identity.
+   *
+   * In a single transaction: purge every pre-existing identity (a pre-seeded
+   * local password AND any OAuth identity a squatter attached to the unverified
+   * address — none were ever proven), mark the email verified, revoke all
+   * outstanding tokens, and create the now-verified provider's identity. Being
+   * atomic is essential: a partial failure must not leave the account verified
+   * with a squatter's identity still attached (which the trusted
+   * existing-identity fast path would then accept). Returns the new identity id.
+   */
+  async takeOverWithOAuthIdentity(
+    userId: string,
+    provider: AuthProvider,
+    providerUserId: string,
+  ): Promise<string> {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.delete(IdentityOrmEntity, { user: { id: userId } });
+      await manager.update(UserOrmEntity, userId, { emailVerified: true });
+      await manager.increment(UserOrmEntity, { id: userId }, 'tokenVersion', 1);
+      const identity = manager.create(IdentityOrmEntity, {
+        user: manager.create(UserOrmEntity, { id: userId } as Partial<UserOrmEntity>),
+        provider,
+        providerUserId,
+        lastLoginAt: new Date(),
+      });
+      const saved = await manager.save(IdentityOrmEntity, identity);
+      return saved.id;
+    });
   }
 
   async upsertOAuthIdentity(
@@ -265,10 +368,7 @@ export class AuthRepository {
       const saved = await this.identityRepo.save(identity);
       return saved.id;
     } catch (err) {
-      if (
-        err instanceof QueryFailedError &&
-        (err as QueryFailedError & { code: string }).code === '23505'
-      ) {
+      if (isUniqueViolation(err)) {
         // Concurrent OAuth login race — re-fetch the identity that won
         const existing = await this.identityRepo.findOne({ where: { provider, providerUserId } });
         if (existing) return existing.id;
@@ -287,6 +387,7 @@ export class AuthRepository {
       avatarUrl: entity.avatarUrl,
       emailVerified: entity.emailVerified,
       status: entity.status,
+      tokenVersion: entity.tokenVersion,
     };
   }
 }

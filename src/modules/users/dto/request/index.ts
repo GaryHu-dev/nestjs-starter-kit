@@ -1,2 +1,3 @@
+export * from './assign-role.dto';
 export * from './find-users-query.dto';
 export * from './update-user.dto';

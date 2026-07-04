@@ -23,7 +23,7 @@ export class PermissionsGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const requiredPermissions = this.reflector.getAllAndOverride<PermissionName[]>(
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
       AUTH_METADATA.PERMISSIONS,
       [context.getHandler(), context.getClass()],
     );
@@ -37,6 +37,6 @@ export class PermissionsGuard implements CanActivate {
 
     if (user.permissions.includes(PermissionName.ALL)) return true;
 
-    return requiredPermissions.some((p) => user.permissions!.includes(p));
+    return requiredPermissions.some((p) => user.permissions.includes(p));
   }
 }

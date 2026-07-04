@@ -1,11 +1,10 @@
-import { randomUUID } from 'crypto';
 import type { IncomingMessage } from 'http';
 import { Params } from 'nestjs-pino';
+import { resolveRequestId } from '@/shared/utils';
 
 export const loggerConfig: Params = {
   pinoHttp: {
-    genReqId: (req: IncomingMessage) =>
-      (req.headers['x-request-id'] as string | undefined) ?? randomUUID(),
+    genReqId: (req: IncomingMessage) => resolveRequestId(req.headers['x-request-id']),
     // Keep credentials and secrets out of logs.
     redact: {
       paths: [

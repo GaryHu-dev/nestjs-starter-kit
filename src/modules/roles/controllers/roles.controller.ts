@@ -40,21 +40,21 @@ export class RolesController {
   @ApiOperation({ summary: 'List all roles.' })
   @ApiOkResponse({ type: RoleDto, isArray: true })
   async findAll(): Promise<RoleDto[]> {
-    return this.rolesService.findAll();
+    return (await this.rolesService.findAll()).map((role) => RoleDto.from(role));
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a role by ID.' })
   @ApiOkResponse({ type: RoleDto })
   async findOne(@Param('id', ParseUuidPipe) id: string): Promise<RoleDto> {
-    return this.rolesService.findById(id);
+    return RoleDto.from(await this.rolesService.findById(id));
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a new role.' })
   @ApiCreatedResponse({ type: RoleDto })
   async create(@Body() dto: CreateRoleDto): Promise<RoleDto> {
-    return this.rolesService.create(dto);
+    return RoleDto.from(await this.rolesService.create(dto));
   }
 
   @Put(':id')
@@ -64,7 +64,7 @@ export class RolesController {
     @Param('id', ParseUuidPipe) id: string,
     @Body() dto: UpdateRoleDto,
   ): Promise<RoleDto> {
-    return this.rolesService.update(id, dto);
+    return RoleDto.from(await this.rolesService.update(id, dto));
   }
 
   @Delete(':id')

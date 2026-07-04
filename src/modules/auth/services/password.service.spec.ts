@@ -1,10 +1,14 @@
+import { ConfigService } from '@nestjs/config';
 import { PasswordService } from './password.service';
 
 describe('PasswordService', () => {
   let service: PasswordService;
 
   beforeEach(() => {
-    service = new PasswordService();
+    // Keep rounds low so the suite stays fast; the production floor is enforced
+    // by the Joi schema, not this service.
+    const config = { get: jest.fn().mockReturnValue(4) } as unknown as ConfigService;
+    service = new PasswordService(config);
   });
 
   describe('hash', () => {
@@ -19,6 +23,11 @@ describe('PasswordService', () => {
       const h2 = await service.hash('Password@123');
       expect(h1).not.toBe(h2);
     });
+  });
+
+  it('falls back to a default cost when config is unset', () => {
+    const config = { get: jest.fn().mockReturnValue(undefined) } as unknown as ConfigService;
+    expect(new PasswordService(config)).toBeDefined();
   });
 
   describe('compare', () => {

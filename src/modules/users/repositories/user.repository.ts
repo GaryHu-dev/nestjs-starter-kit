@@ -22,4 +22,13 @@ export abstract class UserRepository {
   ): Promise<User>;
 
   abstract softDelete(id: string): Promise<void>;
+
+  abstract roleExists(roleId: string): Promise<boolean>;
+
+  /** Grant a role to a user. Idempotent: re-granting the same role is a no-op. */
+  abstract assignRole(userId: string, roleId: string, assignedBy: string): Promise<void>;
+
+  abstract removeRole(userId: string, roleId: string): Promise<void>;
+
+  abstract findRoleCodes(userId: string): Promise<string[]>;
 }

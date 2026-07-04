@@ -19,7 +19,7 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix(appConfig.apiPrefix);
 
-  configureSecurity(app);
+  configureSecurity(app, config.getOrThrow<boolean | number | string>('security.trustProxy'));
   configureCors(app);
   configureVersioning(app);
   configureValidation(app);

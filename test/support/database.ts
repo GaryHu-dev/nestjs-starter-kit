@@ -37,9 +37,11 @@ export async function assignRoleToUser(
   userId: string,
   role: RoleDefinition,
 ): Promise<void> {
+  // `version` is set explicitly because @VersionColumn has no DB-level default
+  // under `synchronize` — TypeORM populates it via the ORM, not raw SQL.
   await dataSource.query(
-    `INSERT INTO roles (id, code, name, is_system, created_at, updated_at)
-     VALUES ($1, $2, $3, true, NOW(), NOW())
+    `INSERT INTO roles (id, code, name, is_system, version, created_at, updated_at)
+     VALUES ($1, $2, $3, true, 1, NOW(), NOW())
      ON CONFLICT (code) DO NOTHING`,
     [randomUUID(), role.code, role.name],
   );
@@ -48,8 +50,8 @@ export async function assignRoleToUser(
     [role.code],
   );
   await dataSource.query(
-    `INSERT INTO user_roles (id, user_id, role_id, assigned_at, created_at, updated_at)
-     VALUES ($1, $2, $3, NOW(), NOW(), NOW())`,
+    `INSERT INTO user_roles (id, user_id, role_id, assigned_at, version, created_at, updated_at)
+     VALUES ($1, $2, $3, NOW(), 1, NOW(), NOW())`,
     [randomUUID(), userId, rows[0].id],
   );
 }

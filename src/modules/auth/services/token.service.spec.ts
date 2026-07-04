@@ -36,6 +36,8 @@ describe('TokenService', () => {
                 'jwt.refreshSecret': REFRESH_SECRET,
                 'jwt.expiresIn': '15m',
                 'jwt.refreshExpiresIn': '7d',
+                'jwt.issuer': 'nestjs-starter-kit',
+                'jwt.audience': 'nestjs-starter-kit',
               };
               if (!(key in map)) throw new Error(`Missing config: ${key}`);
               return map[key];
@@ -80,6 +82,14 @@ describe('TokenService', () => {
       const token = await tokenService.signAccessToken(makePayload());
       const payload = await tokenService.verify(token);
       expect(payload.sub).toBe('user-uuid');
+    });
+
+    it('embeds and accepts the configured issuer and audience', async () => {
+      const token = await tokenService.signAccessToken(makePayload());
+      const decoded = tokenService.decode(token) as { iss?: string; aud?: string } | null;
+      expect(decoded?.iss).toBe('nestjs-starter-kit');
+      expect(decoded?.aud).toBe('nestjs-starter-kit');
+      await expect(tokenService.verify(token)).resolves.toBeDefined();
     });
 
     it('throws on an invalid token', async () => {

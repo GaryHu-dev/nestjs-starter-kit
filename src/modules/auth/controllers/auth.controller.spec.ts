@@ -30,6 +30,8 @@ const makeAuthService = () => ({
   currentUser: jest.fn().mockResolvedValue(profile),
   changePassword: jest.fn().mockResolvedValue(undefined),
   handleOAuthLogin: jest.fn().mockResolvedValue({ tokens, user: profile }),
+  requestEmailVerification: jest.fn().mockResolvedValue(undefined),
+  verifyEmail: jest.fn().mockResolvedValue(undefined),
 });
 
 const mockUser: RequestUser = {
@@ -37,6 +39,9 @@ const mockUser: RequestUser = {
   email: 'gary@example.com',
   provider: AuthProvider.LOCAL,
   type: AUTH_TOKEN_TYPE.ACCESS,
+  tv: 4,
+  roles: [],
+  permissions: [],
 };
 
 describe('AuthController', () => {
@@ -91,6 +96,7 @@ describe('AuthController', () => {
       mockUser.sub,
       mockUser.provider,
       mockUser.email,
+      mockUser.tv,
     );
     expect(result).toEqual(tokens);
   });
@@ -146,5 +152,15 @@ describe('AuthController', () => {
 
   it('githubLogin returns undefined (passport handles redirect)', () => {
     expect(controller.githubLogin()).toBeUndefined();
+  });
+
+  it('requestEmailVerification delegates to service', async () => {
+    await controller.requestEmailVerification({ email: 'gary@example.com' });
+    expect(authService.requestEmailVerification).toHaveBeenCalledWith('gary@example.com');
+  });
+
+  it('verifyEmail delegates to service', async () => {
+    await controller.verifyEmail({ token: 'a.b.c' });
+    expect(authService.verifyEmail).toHaveBeenCalledWith('a.b.c');
   });
 });

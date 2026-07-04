@@ -10,7 +10,7 @@
 export const appConfig = {
   name: 'NestJS Starter Kit',
   description: 'Enterprise NestJS Starter Kit',
-  version: '1.0.0',
+  version: '1.1.0',
   apiPrefix: 'api',
   apiVersion: '1',
   swaggerPath: 'docs',

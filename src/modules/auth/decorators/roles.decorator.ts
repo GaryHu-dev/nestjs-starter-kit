@@ -5,6 +5,7 @@ import { RoleName } from '@/shared/enums';
 /**
  * Restricts an endpoint to users holding at least one of the specified roles.
  *
- * Must be used in combination with RolesGuard.
+ * Accepts role codes as strings so roles created at runtime can gate endpoints
+ * too; the RoleName enum just provides well-known codes. Requires RolesGuard.
  */
-export const Roles = (...roles: RoleName[]) => SetMetadata(AUTH_METADATA.ROLES, roles);
+export const Roles = (...roles: (RoleName | string)[]) => SetMetadata(AUTH_METADATA.ROLES, roles);

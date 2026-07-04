@@ -63,6 +63,21 @@ export class UserOrmEntity extends BaseEntity {
   })
   status!: UserStatus;
 
+  /**
+   * Monotonic token generation. Every access/refresh token embeds the value it
+   * was minted with; bumping it (logout, password change, OAuth account
+   * takeover) invalidates all previously issued tokens on the next request,
+   * closing the stateless-JWT revocation window. Deactivation does not need a
+   * bump — it is caught by the per-request account-status check; role changes
+   * likewise need none, as authorization is resolved from the DB each request.
+   */
+  @Column({
+    name: 'token_version',
+    type: 'int',
+    default: 0,
+  })
+  tokenVersion!: number;
+
   @OneToMany(() => IdentityOrmEntity, (identity) => identity.user)
   identities!: IdentityOrmEntity[];
 

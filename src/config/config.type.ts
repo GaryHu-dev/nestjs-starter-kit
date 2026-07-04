@@ -7,6 +7,7 @@ export interface AppOptions {
   version: string;
   port: number;
   nodeEnv: NodeEnv;
+  url: string;
 }
 
 export interface DatabaseOptions {
@@ -16,8 +17,12 @@ export interface DatabaseOptions {
   password: string;
   database: string;
   ssl: boolean;
+  sslRejectUnauthorized: boolean;
   logging: boolean;
   synchronize: boolean;
+  poolMax: number;
+  statementTimeoutMs: number;
+  lockTimeoutMs: number;
 }
 
 export interface JwtOptions {
@@ -25,6 +30,27 @@ export interface JwtOptions {
   refreshSecret: string;
   expiresIn: StringValue;
   refreshExpiresIn: StringValue;
+  issuer: string;
+  audience: string;
+}
+
+export interface SecurityOptions {
+  bcryptRounds: number;
+  trustProxy: boolean | number | string;
+  throttle: {
+    ttlMs: number;
+    limit: number;
+  };
+  login: {
+    maxAttempts: number;
+    lockoutDurationMs: number;
+  };
+}
+
+export interface EmailOptions {
+  enabled: boolean;
+  from: string;
+  verificationTokenTtlMs: number;
 }
 
 export interface OAuthProviderOptions {
@@ -53,4 +79,6 @@ export interface AppConfig {
   oauth: OAuthOptions;
   frontend: FrontendOptions;
   swagger: SwaggerOptions;
+  security: SecurityOptions;
+  email: EmailOptions;
 }

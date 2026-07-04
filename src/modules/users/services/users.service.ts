@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuditService } from '@/common/audit';
 import { Paginated } from '@/shared/types';
 import { User } from '../models/user.model';
 import { UserRepository } from '../repositories/user.repository';
@@ -12,7 +13,10 @@ import { UpdateUserDto } from '../dto/request/update-user.dto';
  */
 @Injectable()
 export class UsersService {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly auditService: AuditService,
+  ) {}
 
   async findById(id: string): Promise<User> {
     const user = await this.userRepository.findById(id);
@@ -48,5 +52,31 @@ export class UsersService {
     const user = await this.userRepository.findById(id);
     if (!user) throw new NotFoundException('User not found');
     await this.userRepository.softDelete(id);
+  }
+
+  async findRoles(userId: string): Promise<string[]> {
+    await this.findById(userId);
+    return this.userRepository.findRoleCodes(userId);
+  }
+
+  async assignRole(userId: string, roleId: string, assignedBy: string): Promise<string[]> {
+    await this.findById(userId);
+    if (!(await this.userRepository.roleExists(roleId))) {
+      throw new NotFoundException('Role not found');
+    }
+    await this.userRepository.assignRole(userId, roleId, assignedBy);
+    this.auditService.record('rbac.role_assigned', {
+      actorId: assignedBy,
+      targetId: userId,
+      roleId,
+    });
+    return this.userRepository.findRoleCodes(userId);
+  }
+
+  async removeRole(userId: string, roleId: string): Promise<string[]> {
+    await this.findById(userId);
+    await this.userRepository.removeRole(userId, roleId);
+    this.auditService.record('rbac.role_removed', { targetId: userId, roleId });
+    return this.userRepository.findRoleCodes(userId);
   }
 }

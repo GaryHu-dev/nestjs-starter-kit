@@ -12,6 +12,14 @@ export class TokenService {
     private readonly configService: ConfigService,
   ) {}
 
+  private get issuer(): string {
+    return this.configService.getOrThrow<string>('jwt.issuer');
+  }
+
+  private get audience(): string {
+    return this.configService.getOrThrow<string>('jwt.audience');
+  }
+
   async signAccessToken(payload: Omit<JwtPayload, 'type'>): Promise<string> {
     return this.jwtService.signAsync(
       {
@@ -20,6 +28,8 @@ export class TokenService {
       },
       {
         expiresIn: this.configService.getOrThrow<StringValue>('jwt.expiresIn'),
+        issuer: this.issuer,
+        audience: this.audience,
       },
     );
   }
@@ -33,15 +43,23 @@ export class TokenService {
       {
         secret: this.configService.getOrThrow<string>('jwt.refreshSecret'),
         expiresIn: this.configService.getOrThrow<StringValue>('jwt.refreshExpiresIn'),
+        issuer: this.issuer,
+        audience: this.audience,
       },
     );
   }
 
   async verify<T extends JwtPayload>(token: string): Promise<T> {
-    return this.jwtService.verifyAsync<T>(token);
+    return this.jwtService.verifyAsync<T>(token, {
+      issuer: this.issuer,
+      audience: this.audience,
+    });
   }
 
   decode<T extends JwtPayload>(token: string): T | null {
-    return this.jwtService.decode(token);
+    const decoded: unknown = this.jwtService.decode(token);
+    // `decode` returns `string | object | null`; only a payload object is a
+    // valid JwtPayload, so anything else is normalised to null.
+    return decoded !== null && typeof decoded === 'object' ? (decoded as T) : null;
   }
 }

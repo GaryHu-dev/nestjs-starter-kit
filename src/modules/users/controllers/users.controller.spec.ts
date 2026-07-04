@@ -32,6 +32,9 @@ const makeService = () => ({
   findById: jest.fn().mockResolvedValue(mockUser()),
   updateProfile: jest.fn().mockResolvedValue(mockUser()),
   remove: jest.fn().mockResolvedValue(undefined),
+  findRoles: jest.fn().mockResolvedValue(['admin']),
+  assignRole: jest.fn().mockResolvedValue(['admin']),
+  removeRole: jest.fn().mockResolvedValue([]),
 });
 
 describe('UsersController', () => {
@@ -82,5 +85,25 @@ describe('UsersController', () => {
   it('remove delegates to service with the requesting user id', async () => {
     await controller.remove('victim-1', { sub: 'admin-1' } as RequestUser);
     expect(usersService.remove).toHaveBeenCalledWith('victim-1', 'admin-1');
+  });
+
+  it('findRoles delegates to service', async () => {
+    const result = await controller.findRoles('user-1');
+    expect(usersService.findRoles).toHaveBeenCalledWith('user-1');
+    expect(result).toEqual(['admin']);
+  });
+
+  it('assignRole delegates to service with the actor id', async () => {
+    const result = await controller.assignRole('user-1', { roleId: 'role-1' }, {
+      sub: 'admin-1',
+    } as RequestUser);
+    expect(usersService.assignRole).toHaveBeenCalledWith('user-1', 'role-1', 'admin-1');
+    expect(result).toEqual(['admin']);
+  });
+
+  it('removeRole delegates to service', async () => {
+    const result = await controller.removeRole('user-1', 'role-1');
+    expect(usersService.removeRole).toHaveBeenCalledWith('user-1', 'role-1');
+    expect(result).toEqual([]);
   });
 });

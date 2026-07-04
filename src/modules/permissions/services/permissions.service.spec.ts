@@ -72,6 +72,17 @@ describe('PermissionsService', () => {
       );
     });
 
+    it('passes through a provided description', async () => {
+      permissionRepo.findByCode.mockResolvedValue(null);
+      permissionRepo.create.mockResolvedValue(mockPermission());
+
+      await service.create({ code: 'users:read', name: 'Read Users', description: 'Read access' });
+
+      expect(permissionRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'Read access' }),
+      );
+    });
+
     it('throws ConflictException when the code already exists', async () => {
       permissionRepo.findByCode.mockResolvedValue(mockPermission());
       await expect(
@@ -90,6 +101,14 @@ describe('PermissionsService', () => {
 
       expect(result.name).toBe('Write Users');
       expect(permissionRepo.update).toHaveBeenCalledWith('perm-1', { name: 'Write Users' });
+    });
+
+    it('updates the description when provided', async () => {
+      permissionRepo.findById.mockResolvedValue(mockPermission());
+      permissionRepo.update.mockResolvedValue(mockPermission());
+
+      await service.update('perm-1', { description: 'Updated' });
+      expect(permissionRepo.update).toHaveBeenCalledWith('perm-1', { description: 'Updated' });
     });
 
     it('does not clobber description when not provided in partial update', async () => {
