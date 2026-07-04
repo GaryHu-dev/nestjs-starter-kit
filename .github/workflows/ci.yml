@@ -138,11 +138,16 @@ jobs:
       - name: Build production image
         run: docker build -t nestjs-starter-kit:ci .
 
+      # Run Trivy from its official pinned image rather than the setup action,
+      # which repeatedly broke on binary/sub-action downloads. GITHUB_TOKEN is
+      # passed so Trivy's vulnerability-DB pull from ghcr.io isn't rate-limited.
       - name: Scan image for OS/library vulnerabilities
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: nestjs-starter-kit:ci
-          format: table
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            -e GITHUB_TOKEN \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.65.0 image \
+              --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+              nestjs-starter-kit:ci
