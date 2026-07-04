@@ -57,18 +57,23 @@ Base path `/api/v1/auth`.
 | --- | --- | --- | --- |
 | POST | `/auth/register` | Public | Register a local account. Body: `firstName`, `lastName`, `email`, `password`. Returns access + refresh tokens and user profile. |
 | POST | `/auth/login` | Public | Login with `email` + `password`. Returns access + refresh tokens and profile. |
-| POST | `/auth/logout` | Bearer | Invalidate the current session (clears the stored refresh-token hash). `204 No Content`. |
+| POST | `/auth/logout` | Bearer | Log out. Clears the refresh-token hash and revokes all of the user's access tokens (token-version bump). `204 No Content`. |
 | POST | `/auth/refresh` | Refresh token | Issue a new access/refresh token pair. Send the refresh token as the Bearer token; validated by `RefreshGuard`. |
 | GET | `/auth/me` | Bearer | Return the authenticated user's profile. |
-| POST | `/auth/change-password` | Bearer | Change the local account password. Body: `currentPassword`, `newPassword`. `204 No Content`. |
+| POST | `/auth/change-password` | Bearer | Change the local account password. Body: `currentPassword`, `newPassword`. Revokes existing sessions. `204 No Content`. |
+| POST | `/auth/verify-email/request` | Public | Send (or resend) an email-verification link. Body: `email`. Always `204` (no account enumeration). |
+| POST | `/auth/verify-email` | Public | Confirm an email address. Body: `token` (from the emailed link). `204 No Content`. |
 | GET | `/auth/google` | Public | Start the Google OAuth flow (redirects to Google). |
 | GET | `/auth/google/callback` | Public | Google OAuth callback. Returns tokens + profile. |
 | GET | `/auth/github` | Public | Start the GitHub OAuth flow (redirects to GitHub). |
 | GET | `/auth/github/callback` | Public | GitHub OAuth callback. Returns tokens + profile. |
 
-Passwords must be at least 8 characters with an uppercase letter, a lowercase
-letter, a digit, and a special character. OAuth providers are active only when
-their client id/secret are configured (see `.env.example`).
+Passwords must be 8–72 characters with an uppercase letter, a lowercase letter,
+a digit, and a special character. OAuth providers are active only when their
+client id/secret are configured (see `.env.example`).
+
+The auth endpoints apply a stricter per-handler rate limit and a per-account
+lockout after repeated failed logins. See [security.md](security.md).
 
 ## Users
 
@@ -80,6 +85,9 @@ Base path `/api/v1/users`. All routes require a Bearer token.
 | GET | `/users/:id` | `admin`, `super-admin` | Get a user by id. |
 | PUT | `/users/:id` | `admin`, `super-admin` | Update profile. Body: `firstName?`, `lastName?`, `displayName?`, `avatarUrl?`. |
 | DELETE | `/users/:id` | `super-admin` | Soft-delete a user. `204 No Content`. You cannot delete your own account. |
+| GET | `/users/:id/roles` | `admin`, `super-admin` | List the role codes granted to a user. |
+| POST | `/users/:id/roles` | `super-admin` | Grant a role. Body: `roleId`. Returns the updated role-code list. Takes effect on the user's next request. |
+| DELETE | `/users/:id/roles/:roleId` | `super-admin` | Revoke a role. Returns the updated role-code list. |
 
 ## Identities
 
