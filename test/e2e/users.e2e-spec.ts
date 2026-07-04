@@ -180,4 +180,85 @@ describe('Users (e2e)', () => {
       expect(res.status).toBe(403);
     });
   });
+
+  describe('user → role management', () => {
+    let superAdmin: AuthenticatedUser;
+
+    beforeEach(async () => {
+      superAdmin = await createSuperAdmin(app, dataSource, { email: 'super@example.com' });
+    });
+
+    // The outer beforeEach (createAdmin) already seeds the 'admin' role; look up
+    // its id rather than re-creating it.
+    const adminRoleId = async (): Promise<string> => {
+      const res = await api(app).get(`${BASE}/roles`).auth(superAdmin.accessToken, {
+        type: 'bearer',
+      });
+      const role = getData<{ id: string; code: string }[]>(res).find((r) => r.code === 'admin');
+      if (!role) throw new Error('admin role not seeded');
+      return role.id;
+    };
+
+    it('grants a role and it takes effect immediately (dynamic RBAC)', async () => {
+      const member = await createUser(app, { email: 'member@example.com' });
+
+      // Before: a regular user cannot list users.
+      const before = await api(app)
+        .get(`${BASE}/users`)
+        .auth(member.accessToken, { type: 'bearer' });
+      expect(before.status).toBe(403);
+
+      const roleId = await adminRoleId();
+      const assignRes = await api(app)
+        .post(`${BASE}/users/${member.userId}/roles`)
+        .auth(superAdmin.accessToken, { type: 'bearer' })
+        .send({ roleId });
+      expect(assignRes.status).toBe(200);
+      expect(getData<string[]>(assignRes)).toContain('admin');
+
+      // After: the SAME token now works — no re-login needed.
+      const after = await api(app)
+        .get(`${BASE}/users`)
+        .auth(member.accessToken, { type: 'bearer' });
+      expect(after.status).toBe(200);
+    });
+
+    it('revokes a role and access is withdrawn immediately', async () => {
+      const member = await createUser(app, { email: 'member2@example.com' });
+      const roleId = await adminRoleId();
+
+      await api(app)
+        .post(`${BASE}/users/${member.userId}/roles`)
+        .auth(superAdmin.accessToken, { type: 'bearer' })
+        .send({ roleId });
+
+      const removeRes = await api(app)
+        .delete(`${BASE}/users/${member.userId}/roles/${roleId}`)
+        .auth(superAdmin.accessToken, { type: 'bearer' });
+      expect(removeRes.status).toBe(200);
+
+      const after = await api(app)
+        .get(`${BASE}/users`)
+        .auth(member.accessToken, { type: 'bearer' });
+      expect(after.status).toBe(403);
+    });
+
+    it('returns 404 when granting a non-existent role', async () => {
+      const member = await createUser(app, { email: 'member3@example.com' });
+      const res = await api(app)
+        .post(`${BASE}/users/${member.userId}/roles`)
+        .auth(superAdmin.accessToken, { type: 'bearer' })
+        .send({ roleId: NON_EXISTENT_UUID });
+      expect(res.status).toBe(404);
+    });
+
+    it('forbids a non-super-admin from granting roles', async () => {
+      const member = await createUser(app, { email: 'member4@example.com' });
+      const res = await api(app)
+        .post(`${BASE}/users/${member.userId}/roles`)
+        .auth(admin.accessToken, { type: 'bearer' })
+        .send({ roleId: NON_EXISTENT_UUID });
+      expect(res.status).toBe(403);
+    });
+  });
 });

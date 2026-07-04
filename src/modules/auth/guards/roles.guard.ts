@@ -1,7 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AUTH_METADATA } from '@/shared/constants';
-import { RoleName } from '@/shared/enums';
 import type { RequestUser } from '@/shared/types';
 
 /**
@@ -25,7 +24,7 @@ export class RolesGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const requiredRoles = this.reflector.getAllAndOverride<RoleName[]>(AUTH_METADATA.ROLES, [
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(AUTH_METADATA.ROLES, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -37,6 +36,6 @@ export class RolesGuard implements CanActivate {
 
     if (!user?.roles) return false;
 
-    return requiredRoles.some((role) => user.roles!.includes(role));
+    return requiredRoles.some((role) => user.roles.includes(role));
   }
 }

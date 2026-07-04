@@ -3,9 +3,9 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 /**
  * Base application exception.
  *
- * Extend this class for domain-specific HTTP exceptions so that
- * all thrown errors share a consistent shape and can be caught
- * uniformly by the global HttpExceptionFilter.
+ * Extend this for domain-specific HTTP exceptions when a NestJS built-in
+ * (NotFoundException, ConflictException, …) does not fit. All exceptions are
+ * normalised into the standard error envelope by the global AllExceptionsFilter.
  */
 export class AppException extends HttpException {
   constructor(message: string, statusCode: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR) {

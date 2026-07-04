@@ -10,7 +10,7 @@ import { UserRoleOrmEntity } from '@/database/orm/user-role.orm-entity';
 import { AUTH_STRATEGY } from '@/shared/constants';
 import { AuthController } from './controllers';
 import { AuthRepository } from './repositories';
-import { AuthService, PasswordService, TokenService } from './services';
+import { AuthService, EmailVerificationService, PasswordService, TokenService } from './services';
 import { GithubStrategy, GoogleStrategy, JwtStrategy, RefreshStrategy } from './strategies';
 
 @Module({
@@ -40,6 +40,7 @@ import { GithubStrategy, GoogleStrategy, JwtStrategy, RefreshStrategy } from './
   providers: [
     AuthRepository,
     AuthService,
+    EmailVerificationService,
     PasswordService,
     TokenService,
     JwtStrategy,

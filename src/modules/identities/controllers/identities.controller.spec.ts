@@ -27,6 +27,9 @@ const mockUser: RequestUser = {
   email: 'user@example.com',
   provider: AuthProvider.LOCAL,
   type: AUTH_TOKEN_TYPE.ACCESS,
+  tv: 0,
+  roles: [],
+  permissions: [],
 };
 
 describe('IdentitiesController', () => {

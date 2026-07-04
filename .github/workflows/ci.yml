@@ -10,10 +10,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege by default; jobs that need more elevate their own block.
+permissions:
+  contents: read
+
 jobs:
   lint-build-test:
     name: Lint · Build · Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -64,6 +69,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Typecheck (incl. tests)
+        run: pnpm typecheck
+
       - name: Build
         run: pnpm build
 
@@ -83,11 +91,63 @@ jobs:
       - name: E2E tests
         run: pnpm test:e2e
 
-  docker:
-    name: Docker build
+  audit:
+    name: Dependency audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # Fail the build on a known high/critical vulnerability in runtime deps.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+  codeql:
+    name: CodeQL (SAST)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Code scanning is free on public repos; on private repos it needs GitHub
+    # Advanced Security, so skip it there rather than fail every run.
+    if: ${{ !github.event.repository.private }}
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  docker:
+    name: Docker build · Image scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - name: Build production image
         run: docker build -t nestjs-starter-kit:ci .
+
+      # Run Trivy from its official pinned image rather than the setup action,
+      # which repeatedly broke on binary/sub-action downloads. GITHUB_TOKEN is
+      # passed so Trivy's vulnerability-DB pull from ghcr.io isn't rate-limited.
+      - name: Scan image for OS/library vulnerabilities
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            -e GITHUB_TOKEN \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.65.0 image \
+              --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+              nestjs-starter-kit:ci

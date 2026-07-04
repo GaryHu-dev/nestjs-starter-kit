@@ -68,4 +68,26 @@ export class IdentityOrmEntity extends BaseEntity {
     nullable: true,
   })
   lastLoginAt!: Date | null;
+
+  /**
+   * Consecutive failed password attempts against this identity. Reset to 0 on a
+   * successful login; drives the per-account lockout.
+   */
+  @Column({
+    name: 'failed_login_attempts',
+    type: 'int',
+    default: 0,
+  })
+  failedLoginAttempts!: number;
+
+  /**
+   * When set and in the future, the identity is locked and login is refused
+   * regardless of credential correctness.
+   */
+  @Column({
+    name: 'locked_until',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  lockedUntil!: Date | null;
 }

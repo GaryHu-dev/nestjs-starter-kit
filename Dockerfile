@@ -18,6 +18,10 @@ RUN pnpm build
 FROM node:22-alpine AS production
 # tini reaps zombies and forwards signals so graceful shutdown works as PID 1.
 RUN apk add --no-cache tini wget
+# The runtime uses `node` only (installs happen in earlier stages via pnpm), so
+# remove the bundled npm CLI — it isn't needed and its vendored dependencies
+# carry base-image CVEs. Also shrinks the image and attack surface.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 WORKDIR /app
 
 ENV NODE_ENV=production

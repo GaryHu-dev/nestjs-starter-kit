@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Post,
   Put,
   Query,
 } from '@nestjs/common';
@@ -21,7 +22,7 @@ import { ParseUuidPipe } from '@/common/pipes';
 import { CurrentUser, Roles } from '@/modules/auth/decorators';
 import { RoleName } from '@/shared/enums';
 import type { Paginated, RequestUser } from '@/shared/types';
-import { FindUsersQueryDto, UpdateUserDto } from '../dto/request';
+import { AssignRoleDto, FindUsersQueryDto, UpdateUserDto } from '../dto/request';
 import { UserDto } from '../dto/response';
 import { UsersService } from '../services/users.service';
 
@@ -72,5 +73,37 @@ export class UsersController {
     @CurrentUser() user: RequestUser,
   ): Promise<void> {
     await this.usersService.remove(id, user.sub);
+  }
+
+  @Get(':id/roles')
+  @Roles(RoleName.ADMIN, RoleName.SUPER_ADMIN)
+  @ApiOperation({ summary: 'List the role codes granted to a user.' })
+  @ApiOkResponse({ type: String, isArray: true })
+  async findRoles(@Param('id', ParseUuidPipe) id: string): Promise<string[]> {
+    return this.usersService.findRoles(id);
+  }
+
+  @Post(':id/roles')
+  @Roles(RoleName.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Grant a role to a user. Returns the updated role list.' })
+  @ApiOkResponse({ type: String, isArray: true })
+  async assignRole(
+    @Param('id', ParseUuidPipe) id: string,
+    @Body() dto: AssignRoleDto,
+    @CurrentUser() actor: RequestUser,
+  ): Promise<string[]> {
+    return this.usersService.assignRole(id, dto.roleId, actor.sub);
+  }
+
+  @Delete(':id/roles/:roleId')
+  @Roles(RoleName.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Revoke a role from a user. Returns the updated role list.' })
+  @ApiOkResponse({ type: String, isArray: true })
+  async removeRole(
+    @Param('id', ParseUuidPipe) id: string,
+    @Param('roleId', ParseUuidPipe) roleId: string,
+  ): Promise<string[]> {
+    return this.usersService.removeRole(id, roleId);
   }
 }

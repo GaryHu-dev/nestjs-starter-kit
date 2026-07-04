@@ -104,6 +104,26 @@ describe('Auth (e2e)', () => {
       expect(res.status).toBe(401);
     });
 
+    it('locks the account after repeated failures, then rejects even the correct password', async () => {
+      // LOGIN_MAX_ATTEMPTS defaults to 5.
+      for (let i = 0; i < 5; i++) {
+        await login(app, 'test@example.com', 'WrongPassword@1');
+      }
+      // Correct password now, but the account is locked — generic 401, no leak.
+      const res = await login(app, 'test@example.com');
+      expect(res.status).toBe(401);
+      expect((res.body as { message?: string }).message).toBe('Invalid credentials');
+    });
+
+    it('does not leak account existence: unknown and wrong-password both 401 "Invalid credentials"', async () => {
+      const unknown = await login(app, 'ghost@example.com', 'WrongPassword@1');
+      const wrong = await login(app, 'test@example.com', 'WrongPassword@1');
+      expect(unknown.status).toBe(401);
+      expect(wrong.status).toBe(401);
+      expect((unknown.body as { message?: string }).message).toBe('Invalid credentials');
+      expect((wrong.body as { message?: string }).message).toBe('Invalid credentials');
+    });
+
     it('returns 400 for missing fields', async () => {
       const res = await api(app).post(`${BASE}/auth/login`).send({ email: 'test@example.com' });
       expect(res.status).toBe(400);
@@ -181,15 +201,38 @@ describe('Auth (e2e)', () => {
   });
 
   describe('POST /auth/logout', () => {
-    it('returns 204 and invalidates the session', async () => {
+    it('returns 204 and revokes the access token immediately', async () => {
       const { accessToken } = await createUser(app);
 
       const res = await api(app).post(`${BASE}/auth/logout`).auth(accessToken, { type: 'bearer' });
       expect(res.status).toBe(204);
+
+      // Token-version bump: the same access token no longer works.
+      const after = await api(app).get(`${BASE}/auth/me`).auth(accessToken, { type: 'bearer' });
+      expect(after.status).toBe(401);
     });
 
     it('returns 401 without a token', async () => {
       const res = await api(app).post(`${BASE}/auth/logout`);
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('email verification', () => {
+    it('accepts a resend request without revealing account existence', async () => {
+      await createUser(app, { email: 'verify@example.com' });
+      const known = await api(app)
+        .post(`${BASE}/auth/verify-email/request`)
+        .send({ email: 'verify@example.com' });
+      const unknown = await api(app)
+        .post(`${BASE}/auth/verify-email/request`)
+        .send({ email: 'nobody@example.com' });
+      expect(known.status).toBe(204);
+      expect(unknown.status).toBe(204);
+    });
+
+    it('rejects an invalid verification token', async () => {
+      const res = await api(app).post(`${BASE}/auth/verify-email`).send({ token: 'aaa.bbb.ccc' });
       expect(res.status).toBe(401);
     });
   });
@@ -257,13 +300,13 @@ describe('Auth (e2e)', () => {
     it('GET /auth/google does not succeed when unconfigured', async () => {
       const res = await api(app).get(`${BASE}/auth/google`);
       // Passport attempts a redirect (302) before strategy validate() runs;
-      // an unconfigured strategy may also surface as 401/500. Never 2xx.
-      expect([302, 401, 500]).toContain(res.status);
+      // an unconfigured strategy self-disables with a 401. Never 2xx, never 500.
+      expect([302, 401]).toContain(res.status);
     });
 
     it('GET /auth/github does not succeed when unconfigured', async () => {
       const res = await api(app).get(`${BASE}/auth/github`);
-      expect([302, 401, 500]).toContain(res.status);
+      expect([302, 401]).toContain(res.status);
     });
   });
 });

@@ -21,13 +21,14 @@ Every table extends `BaseEntity` (`src/database/entities/base.entity.ts`):
 | `created_at` | timestamptz | Set on insert |
 | `updated_at` | timestamptz | Set on update |
 | `deleted_at` | timestamptz, nullable | Soft-delete marker |
+| `version` | integer | Optimistic-lock version; TypeORM increments it on each change and rejects a stale save |
 
 ## Entities
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `users` | Core user profile | `email` (unique), `first_name`, `last_name`, `display_name`, `avatar_url`, `email_verified`, `status` |
-| `identities` | Auth credentials per provider | `user_id` (FK), `provider`, `provider_user_id`, `password_hash`*, `refresh_token_hash`*, `expires_at`, `last_login_at` |
+| `users` | Core user profile | `email` (unique), `first_name`, `last_name`, `display_name`, `avatar_url`, `email_verified`, `status`, `token_version` |
+| `identities` | Auth credentials per provider | `user_id` (FK), `provider`, `provider_user_id`, `password_hash`*, `refresh_token_hash`*, `expires_at`, `last_login_at`, `failed_login_attempts`, `locked_until` |
 | `roles` | System or custom roles | `code` (unique), `name`, `description`, `is_system` |
 | `permissions` | Permission definitions | `code` (unique), `name`, `description`, `is_system` |
 | `user_roles` | User ↔ role assignments | `user_id` (FK), `role_id` (FK), `assigned_by`, `assigned_at`, `expires_at` |
@@ -35,6 +36,57 @@ Every table extends `BaseEntity` (`src/database/entities/base.entity.ts`):
 
 \* `password_hash` and `refresh_token_hash` are declared `select: false` and are
 never loaded unless explicitly requested.
+
+Notable columns:
+
+- `users.token_version` — advanced on logout / password change / OAuth takeover
+  to revoke previously issued JWTs (see [security.md](security.md)).
+- `identities.failed_login_attempts` / `locked_until` — per-account lockout.
+
+### Entity-relationship diagram
+
+```mermaid
+erDiagram
+    users ||--o{ identities : "has"
+    users ||--o{ user_roles : "assigned"
+    roles ||--o{ user_roles : "grants"
+    roles ||--o{ role_permissions : "grants"
+    permissions ||--o{ role_permissions : "granted by"
+
+    users {
+        uuid id PK
+        string email UK
+        string status
+        int token_version
+        boolean email_verified
+    }
+    identities {
+        uuid id PK
+        uuid user_id FK
+        string provider
+        string provider_user_id
+        int failed_login_attempts
+        timestamptz locked_until
+    }
+    roles {
+        uuid id PK
+        string code UK
+        boolean is_system
+    }
+    permissions {
+        uuid id PK
+        string code UK
+        boolean is_system
+    }
+    user_roles {
+        uuid user_id FK
+        uuid role_id FK
+    }
+    role_permissions {
+        uuid role_id FK
+        uuid permission_id FK
+    }
+```
 
 ### Relationships
 

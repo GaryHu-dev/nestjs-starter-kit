@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
+import { AuditService } from '@/common/audit';
 import { UserRepository } from '../repositories/user.repository';
 import { UserStatus } from '@/shared/enums';
 import type { User } from '../models/user.model';
@@ -26,6 +27,10 @@ const makeUserRepo = () => ({
   create: jest.fn(),
   update: jest.fn(),
   softDelete: jest.fn(),
+  roleExists: jest.fn(),
+  assignRole: jest.fn().mockResolvedValue(undefined),
+  removeRole: jest.fn().mockResolvedValue(undefined),
+  findRoleCodes: jest.fn().mockResolvedValue([]),
 });
 
 describe('UsersService', () => {
@@ -36,7 +41,11 @@ describe('UsersService', () => {
     userRepo = makeUserRepo();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UsersService, { provide: UserRepository, useValue: userRepo }],
+      providers: [
+        UsersService,
+        { provide: UserRepository, useValue: userRepo },
+        { provide: AuditService, useValue: { record: jest.fn() } },
+      ],
     }).compile();
 
     service = module.get(UsersService);
@@ -116,6 +125,69 @@ describe('UsersService', () => {
     it('throws NotFoundException when user not found', async () => {
       userRepo.findById.mockResolvedValue(null);
       await expect(service.remove('missing', 'admin-1')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('role management', () => {
+    describe('findRoles', () => {
+      it('returns the user role codes', async () => {
+        userRepo.findById.mockResolvedValue(mockUser());
+        userRepo.findRoleCodes.mockResolvedValue(['admin']);
+        expect(await service.findRoles('user-1')).toEqual(['admin']);
+      });
+
+      it('throws NotFoundException when the user is missing', async () => {
+        userRepo.findById.mockResolvedValue(null);
+        await expect(service.findRoles('missing')).rejects.toBeInstanceOf(NotFoundException);
+      });
+    });
+
+    describe('assignRole', () => {
+      it('grants the role and returns the updated list', async () => {
+        userRepo.findById.mockResolvedValue(mockUser());
+        userRepo.roleExists.mockResolvedValue(true);
+        userRepo.findRoleCodes.mockResolvedValue(['admin']);
+
+        const result = await service.assignRole('user-1', 'role-1', 'actor-1');
+
+        expect(userRepo.assignRole).toHaveBeenCalledWith('user-1', 'role-1', 'actor-1');
+        expect(result).toEqual(['admin']);
+      });
+
+      it('throws NotFoundException when the user is missing', async () => {
+        userRepo.findById.mockResolvedValue(null);
+        await expect(service.assignRole('missing', 'role-1', 'actor-1')).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+      });
+
+      it('throws NotFoundException when the role does not exist', async () => {
+        userRepo.findById.mockResolvedValue(mockUser());
+        userRepo.roleExists.mockResolvedValue(false);
+        await expect(service.assignRole('user-1', 'missing', 'actor-1')).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+        expect(userRepo.assignRole).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('removeRole', () => {
+      it('revokes the role and returns the updated list', async () => {
+        userRepo.findById.mockResolvedValue(mockUser());
+        userRepo.findRoleCodes.mockResolvedValue([]);
+
+        const result = await service.removeRole('user-1', 'role-1');
+
+        expect(userRepo.removeRole).toHaveBeenCalledWith('user-1', 'role-1');
+        expect(result).toEqual([]);
+      });
+
+      it('throws NotFoundException when the user is missing', async () => {
+        userRepo.findById.mockResolvedValue(null);
+        await expect(service.removeRole('missing', 'role-1')).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+      });
     });
   });
 });

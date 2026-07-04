@@ -36,7 +36,15 @@ export class GithubStrategy extends PassportStrategy(Strategy, AUTH_STRATEGY.GIT
       throw new UnauthorizedException('GitHub OAuth is not configured on this server');
     }
 
-    const email = profile.emails?.[0]?.value ?? '';
+    // passport-github2 populates `emails` from GitHub's /user/emails but drops
+    // the per-address `verified`/`primary` flags, so we cannot prove the email
+    // is verified here. GitHub emails are therefore treated as UNVERIFIED: a new
+    // account can still be created, but the email is never trusted to link into
+    // a pre-existing account (see AuthService.resolveOAuthUser). To support
+    // verified GitHub account-linking, override the strategy's userProfile to
+    // fetch /user/emails and set emailVerified from the verified primary.
+    const email = (profile.emails?.[0]?.value ?? '').trim().toLowerCase();
+    const emailVerified = false;
     const displayName = profile.displayName ?? profile.username ?? '';
     const nameParts = displayName.split(' ');
     const firstName = nameParts[0] ?? displayName;
@@ -47,6 +55,7 @@ export class GithubStrategy extends PassportStrategy(Strategy, AUTH_STRATEGY.GIT
       provider: AuthProvider.GITHUB,
       providerUserId: profile.id,
       email,
+      emailVerified,
       firstName,
       lastName,
       avatarUrl,

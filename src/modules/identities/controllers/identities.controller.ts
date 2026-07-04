@@ -20,12 +20,6 @@ export class IdentitiesController {
   @ApiOkResponse({ type: IdentityDto, isArray: true })
   async findMyIdentities(@CurrentUser() user: RequestUser): Promise<IdentityDto[]> {
     const identities = await this.identitiesService.findByUserId(user.sub);
-    return identities.map((identity) => ({
-      id: identity.id,
-      provider: identity.provider,
-      expiresAt: identity.expiresAt,
-      lastLoginAt: identity.lastLoginAt,
-      createdAt: identity.createdAt,
-    }));
+    return identities.map((identity) => IdentityDto.from(identity));
   }
 }

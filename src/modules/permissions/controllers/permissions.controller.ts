@@ -39,21 +39,23 @@ export class PermissionsController {
   @ApiOperation({ summary: 'List all permissions.' })
   @ApiOkResponse({ type: PermissionDto, isArray: true })
   async findAll(): Promise<PermissionDto[]> {
-    return this.permissionsService.findAll();
+    return (await this.permissionsService.findAll()).map((permission) =>
+      PermissionDto.from(permission),
+    );
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a permission by ID.' })
   @ApiOkResponse({ type: PermissionDto })
   async findOne(@Param('id', ParseUuidPipe) id: string): Promise<PermissionDto> {
-    return this.permissionsService.findById(id);
+    return PermissionDto.from(await this.permissionsService.findById(id));
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a new permission.' })
   @ApiCreatedResponse({ type: PermissionDto })
   async create(@Body() dto: CreatePermissionDto): Promise<PermissionDto> {
-    return this.permissionsService.create(dto);
+    return PermissionDto.from(await this.permissionsService.create(dto));
   }
 
   @Put(':id')
@@ -63,7 +65,7 @@ export class PermissionsController {
     @Param('id', ParseUuidPipe) id: string,
     @Body() dto: UpdatePermissionDto,
   ): Promise<PermissionDto> {
-    return this.permissionsService.update(id, dto);
+    return PermissionDto.from(await this.permissionsService.update(id, dto));
   }
 
   @Delete(':id')

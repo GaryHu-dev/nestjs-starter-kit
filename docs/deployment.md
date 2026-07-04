@@ -81,8 +81,10 @@ These are configured in code and apply automatically:
 - **Graceful shutdown** — `app.enableShutdownHooks()` lets NestJS close DB
   connections and finish in-flight work on `SIGTERM`/`SIGINT`; tini ensures the
   signal reaches the process.
-- **Trust proxy** — `trust proxy` is set to the first hop so rate limiting and
-  logging see the real client IP behind a load balancer.
+- **Trust proxy** — driven by `TRUST_PROXY` (default: first hop). **Tune it to
+  your topology** — set the exact hop count or a trusted CIDR list so rate
+  limiting and logging see the real client IP. Over-trusting lets clients spoof
+  `X-Forwarded-For`; see [security.md](security.md).
 - **Security headers** — `helmet()` is applied globally; request bodies are
   capped at `1mb`.
 - **CORS** — restricted to `FRONTEND_URL` with credentials enabled.

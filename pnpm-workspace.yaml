@@ -3,3 +3,9 @@ allowBuilds:
   bcrypt: true
   protobufjs: true
   unrs-resolver: true
+
+# Force the patched multer (GHSA-72gw-mp4g-v24j DoS). @nestjs/platform-express
+# still resolves multer 2.1.x transitively; we don't use file uploads, so
+# bumping to 2.2.x within the same major is safe.
+overrides:
+  multer: '^2.2.0'

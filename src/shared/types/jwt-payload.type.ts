@@ -1,17 +1,22 @@
-import { AuthProvider, PermissionName, RoleName } from '@/shared/enums';
+import { AuthProvider } from '@/shared/enums';
 import { AuthTokenType } from '@/shared/constants';
 
 /**
  * JWT payload.
  *
- * Roles and permissions are embedded so that guards can
- * make authorization decisions without an extra DB round-trip.
+ * Deliberately does NOT embed roles/permissions: authorization is resolved
+ * from the database on every request (see JwtStrategy) so a role or permission
+ * change takes effect immediately instead of waiting for the token to expire.
+ *
+ * `tv` carries the user's token version at mint time; JwtStrategy rejects the
+ * token when it no longer matches the user's current tokenVersion, which is how
+ * logout / password-change / OAuth-takeover revoke already-issued tokens.
+ * (Deactivation is handled separately by the per-request account-status check.)
  */
 export type JwtPayload = {
   sub: string;
   email: string;
   provider: AuthProvider;
   type: AuthTokenType;
-  roles?: RoleName[];
-  permissions?: PermissionName[];
+  tv?: number;
 };

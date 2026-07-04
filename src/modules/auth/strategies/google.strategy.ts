@@ -38,11 +38,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, AUTH_STRATEGY.GOO
 
     const email = profile.emails?.[0]?.value;
     const avatarUrl = profile.photos?.[0]?.value ?? null;
+    // Google's OpenID `email_verified` claim tells us whether the address is
+    // proven. Trust nothing else for account linking.
+    const emailVerified = (profile._json as { email_verified?: boolean })?.email_verified === true;
 
     return {
       provider: AuthProvider.GOOGLE,
       providerUserId: profile.id,
-      email: email ?? '',
+      email: (email ?? '').trim().toLowerCase(),
+      emailVerified,
       firstName: profile.name?.givenName ?? '',
       lastName: profile.name?.familyName ?? '',
       avatarUrl,

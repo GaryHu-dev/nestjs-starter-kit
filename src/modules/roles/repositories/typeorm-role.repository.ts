@@ -5,6 +5,7 @@ import { PermissionOrmEntity } from '@/database/orm/permission.orm-entity';
 import { RolePermissionOrmEntity } from '@/database/orm/role-permission.orm-entity';
 import { RoleOrmEntity } from '@/database/orm/role.orm-entity';
 import { PermissionRepository } from '@/modules/permissions/repositories/permission.repository';
+import { isUniqueViolation } from '@/shared/utils';
 import { Role } from '../models/role.model';
 import { RoleRepository } from './role.repository';
 
@@ -78,7 +79,13 @@ export class TypeOrmRoleRepository extends RoleRepository {
       permission: { id: permissionId } as PermissionOrmEntity,
       assignedBy,
     });
-    await this.rolePermissionRepo.save(rp);
+    try {
+      await this.rolePermissionRepo.save(rp);
+    } catch (err) {
+      // Concurrent assignment of the same permission — treat as success.
+      if (isUniqueViolation(err)) return;
+      throw err;
+    }
   }
 
   async removePermission(roleId: string, permissionId: string): Promise<void> {

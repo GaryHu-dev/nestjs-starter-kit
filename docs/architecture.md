@@ -157,32 +157,43 @@ path) live in `config/app.config.ts`.
 
 ## Authentication model
 
-Authentication uses stateless JWTs with refresh-token rotation:
+Authentication uses stateless JWTs with database-verified authorization:
 
-- **Access token** — short-lived (default `15m`), signed with `JWT_SECRET`.
-  Carries `sub`, `email`, `provider`, and the user's `roles` and `permissions`.
+- **Access token** — short-lived (default `15m`), signed with `JWT_SECRET` and
+  validated for `issuer`/`audience`. Carries `sub`, `email`, `provider`, and
+  `tv` (the token version at mint time). It deliberately does **not** carry
+  roles/permissions.
 - **Refresh token** — longer-lived (default `7d`), signed with the separate
   `JWT_REFRESH_SECRET`. The refresh token is **bcrypt-hashed and stored on the
   identity row** (`identities.refresh_token_hash`, `select: false`). On refresh
   the presented token is verified against the stored hash; logout clears it.
 - **`@Public()`** marks endpoints that skip auth (register, login, refresh,
-  health, OAuth routes).
+  email verification, health, OAuth routes).
 
-### RBAC
+### Dynamic RBAC
 
-Authorization is role- and permission-based:
+Authorization is resolved from the database on **every** request:
+`JwtStrategy.validate` loads the user's current status, token version and
+role/permission **codes** (`AuthRepository.findAuthContext`) and attaches them
+to `request.user`. The guards then match string codes.
 
-- Roles: `super-admin`, `admin`, `user` (see `RoleName`).
-- Permissions: granular codes plus the wildcard `*` (`PermissionName.ALL`),
-  which satisfies any permission check.
-- `@Roles(...)` and `@Permissions(...)` decorate controllers/handlers; the
-  global guards read the required values via the `Reflector`.
+- Roles: `super-admin`, `admin`, `user` (see `RoleName`) plus any created at
+  runtime.
+- Permissions: granular codes plus the wildcard `*` (`PermissionName.ALL`).
+- `@Roles(...)` / `@Permissions(...)` accept string codes, so runtime-created
+  roles/permissions can gate endpoints. Manage user grants via
+  `POST/DELETE /users/:id/roles`.
 
-### Stateless trade-off
+Because authorization is read fresh, granting or revoking a role/permission
+takes effect on the user's **next request** — no re-login, no waiting for token
+expiry.
 
-Roles and permissions are embedded in the access token and read directly from
-it by the guards (no DB round-trip per request). The consequence: changing a
-user's roles or permissions does **not** affect their current access token. The
-change takes effect when a new access token is issued — i.e. on the next
-refresh, within the access-token lifetime (default 15 minutes). This is the
-standard latency-vs-freshness trade-off of stateless JWT authorization.
+### Revocation
+
+Stateless access tokens are revoked with a per-user `token_version`: each token
+embeds the value it was minted with, and `JwtStrategy` rejects any token whose
+`tv` no longer matches the user's current version. The version is advanced on
+logout, password change, and OAuth account takeover; a non-`ACTIVE` account is
+rejected by the same per-request check. This closes the stateless-JWT revocation
+window without requiring a session store. See
+[security.md](security.md) and [ADR 0004](adr/0004-token-revocation.md).

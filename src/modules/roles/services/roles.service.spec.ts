@@ -75,6 +75,17 @@ describe('RolesService', () => {
       );
     });
 
+    it('passes through a provided description', async () => {
+      roleRepo.findByCode.mockResolvedValue(null);
+      roleRepo.create.mockResolvedValue(mockRole());
+
+      await service.create({ code: 'editor', name: 'Editor', description: 'Can edit' });
+
+      expect(roleRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ description: 'Can edit' }),
+      );
+    });
+
     it('throws ConflictException when the code already exists', async () => {
       roleRepo.findByCode.mockResolvedValue(mockRole());
       await expect(service.create({ code: 'editor', name: 'Editor' })).rejects.toBeInstanceOf(
@@ -93,6 +104,14 @@ describe('RolesService', () => {
 
       expect(result.name).toBe('Senior Editor');
       expect(roleRepo.update).toHaveBeenCalledWith('role-1', { name: 'Senior Editor' });
+    });
+
+    it('updates the description when provided', async () => {
+      roleRepo.findById.mockResolvedValue(mockRole());
+      roleRepo.update.mockResolvedValue(mockRole());
+
+      await service.update('role-1', { description: 'Updated' });
+      expect(roleRepo.update).toHaveBeenCalledWith('role-1', { description: 'Updated' });
     });
 
     it('does not clobber description when not provided', async () => {

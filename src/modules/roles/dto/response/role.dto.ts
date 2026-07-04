@@ -1,7 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
+import type { Role } from '../../models/role.model';
 
 /**
- * Role response.
+ * Role response. Built via `from()` so only whitelisted fields are ever
+ * serialised, even if the domain model later grows internal fields.
  */
 export class RoleDto {
   @ApiProperty()
@@ -24,4 +26,16 @@ export class RoleDto {
 
   @ApiProperty()
   updatedAt!: Date;
+
+  static from(role: Role): RoleDto {
+    return {
+      id: role.id,
+      code: role.code,
+      name: role.name,
+      description: role.description,
+      isSystem: role.isSystem,
+      createdAt: role.createdAt,
+      updatedAt: role.updatedAt,
+    };
+  }
 }
