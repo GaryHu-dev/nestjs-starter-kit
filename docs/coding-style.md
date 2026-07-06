@@ -48,6 +48,18 @@ The single most important architectural rule:
 - Only the TypeORM repository imports ORM entities and maps them to plain
   domain models. ORM entities never escape the persistence layer.
 
+**Deliberate exception — the `auth` module.** `AuthRepository` is a single
+concrete `@Injectable()` with no abstract counterpart and no `models/` layer.
+This is intentional, not an oversight: it is a deeply transactional,
+security-critical repository (row-locked lockout counters, atomic OAuth account
+takeover, the per-request auth-context join) with exactly one implementation
+that will never be swapped. Its query results are typed as projection
+interfaces (`AuthUserView`, `IdentityWithHash`, …) co-located with the queries
+that produce them. Wrapping a single-implementation transactional repository in
+an abstract class buys no seam and only adds indirection — the CRUD modules use
+the abstract/concrete split because they may plausibly vary; auth does not. A
+good starter should also demonstrate *when not to abstract*.
+
 ## DTOs
 
 - Separate request and response DTOs (`dto/request/`, `dto/response/`). Do not
@@ -56,6 +68,10 @@ The single most important architectural rule:
   `ValidationPipe` runs with `whitelist` and `forbidNonWhitelisted`, so unknown
   properties are rejected — declare every accepted field.
 - Never return ORM entities from controllers; map to a response DTO.
+- Every response DTO exposes a static `.from(...)` mapper that returns an object
+  literal listing only the whitelisted fields (see `UserDto.from`,
+  `ProfileDto.from`). Build responses through it rather than spreading a model —
+  the explicit field list is what guarantees internal columns can't leak.
 - Do not accept privileged fields from clients (e.g. `isSystem` is deliberately
   omitted from create DTOs; `code` is immutable on update).
 

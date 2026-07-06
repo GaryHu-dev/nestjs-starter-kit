@@ -20,7 +20,21 @@ import { UserOrmEntity } from '@/database/orm/user.orm-entity';
 import { UserRoleOrmEntity } from '@/database/orm/user-role.orm-entity';
 import { AuthProvider, PermissionName, RoleName, UserStatus } from '@/shared/enums';
 
-const SALT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS ?? '12', 10);
+const SALT_ROUNDS = resolveSaltRounds();
+
+/**
+ * Validate BCRYPT_ROUNDS up front so a typo (e.g. `high`) fails loudly here
+ * rather than as an opaque `NaN` error midway through hashing the admin
+ * password. The CLI seed path does not run the app's Joi validation.
+ */
+function resolveSaltRounds(): number {
+  const raw = process.env.BCRYPT_ROUNDS ?? '12';
+  const rounds = Number(raw);
+  if (!Number.isInteger(rounds) || rounds < 1 || rounds > 31) {
+    throw new Error(`BCRYPT_ROUNDS must be an integer between 1 and 31, got "${raw}".`);
+  }
+  return rounds;
+}
 
 const SYSTEM_ROLES = [
   { code: RoleName.SUPER_ADMIN, name: 'Super Admin', description: 'Full, unrestricted access.' },
@@ -77,7 +91,21 @@ async function seed(): Promise<void> {
 
       const existingUser = await manager.findOne(UserOrmEntity, { where: { email } });
       if (existingUser) {
-        console.log(`Super-admin user "${email}" already exists; skipping.`);
+        // The email may already exist (e.g. someone self-registered it before
+        // the seed ran). Don't silently skip — that could leave the system with
+        // no super-admin. Reconcile by ensuring the account holds the role.
+        const alreadyAdmin = await manager.findOne(UserRoleOrmEntity, {
+          where: { user: { id: existingUser.id }, role: { id: superAdminRole.id } },
+        });
+        if (alreadyAdmin) {
+          console.log(`Super-admin user "${email}" already exists; skipping.`);
+        } else {
+          await manager.save(
+            UserRoleOrmEntity,
+            manager.create(UserRoleOrmEntity, { user: existingUser, role: superAdminRole }),
+          );
+          console.log(`Existing user "${email}" was missing super-admin; granted the role.`);
+        }
         return;
       }
 

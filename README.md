@@ -8,7 +8,7 @@ A production-ready NestJS starter kit for building secure, maintainable backend 
 ![Coverage](https://img.shields.io/badge/coverage-%E2%89%A590%2F85%2F90%2F90-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-**Who it's for:** teams (a good fit for NZ/AU SMEs) that want an enterprise-grade,
+**Who it's for:** teams (a good fit for SMEs) that want an enterprise-grade,
 clone-and-run backend — secure and correct out of the box, without the ceremony of
 a large platform. It runs on PostgreSQL alone (no Redis/queue required) and leaves
 heavier concerns as documented extension points.

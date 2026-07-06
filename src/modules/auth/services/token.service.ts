@@ -53,6 +53,7 @@ export class TokenService {
     return this.jwtService.verifyAsync<T>(token, {
       issuer: this.issuer,
       audience: this.audience,
+      algorithms: ['HS256'],
     });
   }
 

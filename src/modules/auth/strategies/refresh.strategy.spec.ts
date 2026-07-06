@@ -1,7 +1,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
 import { RefreshStrategy } from './refresh.strategy';
+import { PasswordService } from '../services/password.service';
 import { AuthRepository } from '../repositories/auth.repository';
 import { AuthProvider } from '@/shared/enums';
 import { AUTH_TOKEN_TYPE } from '@/shared/constants';
@@ -12,6 +12,12 @@ const makeConfig = () =>
   ({
     getOrThrow: jest.fn().mockReturnValue('test_refresh_secret_32_chars_long_'),
   }) as unknown as ConfigService;
+
+// Real PasswordService (low cost) so the strategy exercises the actual
+// SHA-256-then-bcrypt token comparison rather than a mock.
+const passwordService = new PasswordService({
+  get: jest.fn().mockReturnValue(4),
+} as unknown as ConfigService);
 
 const makeAuthRepo = () => ({
   findIdentityWithHashByUserIdAndProvider: jest.fn(),
@@ -30,12 +36,16 @@ describe('RefreshStrategy', () => {
 
   beforeEach(() => {
     authRepo = makeAuthRepo();
-    strategy = new RefreshStrategy(makeConfig(), authRepo as unknown as AuthRepository);
+    strategy = new RefreshStrategy(
+      makeConfig(),
+      authRepo as unknown as AuthRepository,
+      passwordService,
+    );
   });
 
   it('validates successfully when refresh token hash matches', async () => {
     const rawToken = 'raw-refresh-token';
-    const hash = await bcrypt.hash(rawToken, 1);
+    const hash = await passwordService.hashToken(rawToken);
     const req = {
       headers: { authorization: `Bearer ${rawToken}` },
     } as unknown as Request;
@@ -77,7 +87,7 @@ describe('RefreshStrategy', () => {
 
   it('throws UnauthorizedException when refresh token hash does not match', async () => {
     authRepo.findIdentityWithHashByUserIdAndProvider.mockResolvedValue({
-      refreshTokenHash: await bcrypt.hash('different-token', 1),
+      refreshTokenHash: await passwordService.hashToken('different-token'),
     });
     const req = {
       headers: { authorization: 'Bearer wrong-token' },

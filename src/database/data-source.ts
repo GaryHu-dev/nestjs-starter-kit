@@ -18,7 +18,11 @@ export default new DataSource({
     username: process.env.DATABASE_USER!,
     password: process.env.DATABASE_PASSWORD!,
     database: process.env.DATABASE_NAME!,
-    ssl: envBool(process.env.DATABASE_SSL, false),
+    // The CLI (migration:run:prod / seed:prod) doesn't run the app's Joi schema,
+    // which would otherwise force TLS in production. Default SSL to on in
+    // production so migrations can't silently connect in plaintext, while still
+    // honouring an explicit DATABASE_SSL=false (e.g. a non-TLS CI container).
+    ssl: envBool(process.env.DATABASE_SSL, isProduction),
     sslRejectUnauthorized: envBool(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED, true),
     logging: !isProduction,
     poolMax: envNum(process.env.DATABASE_POOL_MAX, 10),

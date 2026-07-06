@@ -20,7 +20,12 @@ export class SecurityHardening1782650000000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     for (const table of SecurityHardening1782650000000.VERSIONED_TABLES) {
+      // Add with a default so the NOT NULL column backfills existing rows, then
+      // drop it: TypeORM's @VersionColumn manages the value on every write and
+      // declares no column default, so keeping one would show as schema drift on
+      // the next `migration:generate`.
       await queryRunner.query(`ALTER TABLE "${table}" ADD "version" integer NOT NULL DEFAULT 1`);
+      await queryRunner.query(`ALTER TABLE "${table}" ALTER COLUMN "version" DROP DEFAULT`);
     }
 
     await queryRunner.query(`ALTER TABLE "users" ADD "token_version" integer NOT NULL DEFAULT 0`);

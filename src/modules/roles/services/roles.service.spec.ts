@@ -163,10 +163,27 @@ describe('RolesService', () => {
   });
 
   describe('assignPermission', () => {
-    it('delegates to roleRepository', async () => {
+    it('verifies the role exists then delegates', async () => {
+      roleRepo.findById.mockResolvedValue(mockRole());
       roleRepo.assignPermission.mockResolvedValue(undefined);
       await service.assignPermission('role-1', 'perm-1', 'user-1');
       expect(roleRepo.assignPermission).toHaveBeenCalledWith('role-1', 'perm-1', 'user-1');
+    });
+
+    it('throws NotFoundException when the role does not exist', async () => {
+      roleRepo.findById.mockResolvedValue(null);
+      await expect(service.assignPermission('missing', 'perm-1', 'user-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(roleRepo.assignPermission).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when assigning to a system role', async () => {
+      roleRepo.findById.mockResolvedValue(mockRole({ isSystem: true }));
+      await expect(service.assignPermission('role-1', 'perm-1', 'user-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(roleRepo.assignPermission).not.toHaveBeenCalled();
     });
   });
 
@@ -183,6 +200,14 @@ describe('RolesService', () => {
       roleRepo.findById.mockResolvedValue(null);
       await expect(service.removePermission('missing', 'perm-1')).rejects.toBeInstanceOf(
         NotFoundException,
+      );
+      expect(roleRepo.removePermission).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when removing from a system role', async () => {
+      roleRepo.findById.mockResolvedValue(mockRole({ isSystem: true }));
+      await expect(service.removePermission('role-1', 'perm-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
       );
       expect(roleRepo.removePermission).not.toHaveBeenCalled();
     });

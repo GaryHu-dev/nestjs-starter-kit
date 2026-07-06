@@ -74,6 +74,16 @@ Generate secrets with e.g. `openssl rand -base64 48`.
 Run migrations and seeding as separate one-off jobs/init containers, not inside
 the long-running app process.
 
+> **`uuid-ossp` on locked-down managed Postgres.** The schema defaults primary
+> keys to `uuid_generate_v4()`, which lives in the `uuid-ossp` extension. TypeORM
+> auto-creates it on first connect (`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`),
+> so local, Docker, and CI all work with no extra step. But some managed
+> providers (RDS/Cloud SQL/Azure) run the app with a role that **cannot** create
+> extensions. If migrations fail with `function uuid_generate_v4() does not
+> exist`, pre-create the extension once as a superuser
+> (`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`), or switch the defaults to the
+> built-in `gen_random_uuid()` (PostgreSQL 13+, no extension needed).
+
 ## Production hardening
 
 These are configured in code and apply automatically:

@@ -15,6 +15,7 @@ export const loggerConfig: Params = {
         'req.body.currentPassword',
         'req.body.newPassword',
         'req.body.refreshToken',
+        'req.body.token',
       ],
       censor: '[REDACTED]',
     },

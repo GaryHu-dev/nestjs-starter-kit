@@ -57,11 +57,14 @@ export class RolesService {
   }
 
   async assignPermission(roleId: string, permissionId: string, assignedBy: string): Promise<void> {
+    const role = await this.findById(roleId);
+    if (role.isSystem) throw new ForbiddenException('System roles cannot be modified');
     await this.roleRepository.assignPermission(roleId, permissionId, assignedBy);
   }
 
   async removePermission(roleId: string, permissionId: string): Promise<void> {
-    await this.findById(roleId);
+    const role = await this.findById(roleId);
+    if (role.isSystem) throw new ForbiddenException('System roles cannot be modified');
     await this.roleRepository.removePermission(roleId, permissionId);
   }
 
