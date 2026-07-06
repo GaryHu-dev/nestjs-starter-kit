@@ -13,6 +13,10 @@ import { configureVersioning } from '@/config/versioning.config';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
+    // Disable Nest's default body parser so the explicit, size-limited parsers
+    // registered in configureSecurity (1 MB) are the only ones — otherwise the
+    // default 100 KB parser runs first and silently wins.
+    bodyParser: false,
   });
   app.useLogger(app.get(Logger));
   const config = app.get(ConfigService);

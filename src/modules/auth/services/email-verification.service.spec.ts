@@ -11,7 +11,7 @@ const SECRET = 'email_verification_secret_at_least_32_chars__';
 const configMap: Record<string, unknown> = {
   'email.verificationTokenTtlMs': 86_400_000,
   'jwt.issuer': 'nestjs-starter-kit',
-  'app.url': 'http://localhost:3000',
+  'frontend.url': 'https://app.example.com',
 };
 
 describe('EmailVerificationService', () => {
@@ -35,12 +35,15 @@ describe('EmailVerificationService', () => {
     service = module.get(EmailVerificationService);
   });
 
-  it('sends a verification email containing a link', async () => {
+  it('sends a verification email linking to the frontend, not the API', async () => {
     await service.sendVerificationEmail('user-1', 'gary@example.com');
     expect(sender.send).toHaveBeenCalledTimes(1);
     const [message] = sender.send.mock.calls[0] as [{ to: string; text: string }];
     expect(message.to).toBe('gary@example.com');
-    expect(message.text).toContain('/api/v1/auth/verify-email?token=');
+    // The link must point at the frontend page (which then POSTs the token to
+    // the API), never straight at the POST-only API endpoint.
+    expect(message.text).toContain('https://app.example.com/verify-email?token=');
+    expect(message.text).not.toContain('/api/v1/');
   });
 
   it('round-trips: a freshly issued token verifies to its user id', async () => {

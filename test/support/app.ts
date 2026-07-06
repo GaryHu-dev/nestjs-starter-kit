@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule, TestingModuleBuilder } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import type { App } from 'supertest/types';
@@ -20,11 +20,18 @@ export interface TestApp {
  *
  * Each spec file owns its own instance (created in `beforeAll`, closed in
  * `afterAll`), keeping suites independent.
+ *
+ * `customize` lets a spec override providers on the module builder (e.g. swap a
+ * Passport strategy for a mock) before it is compiled.
  */
-export async function createTestApp(): Promise<TestApp> {
-  const moduleRef: TestingModule = await Test.createTestingModule({
+export async function createTestApp(
+  customize?: (builder: TestingModuleBuilder) => TestingModuleBuilder,
+): Promise<TestApp> {
+  let builder: TestingModuleBuilder = Test.createTestingModule({
     imports: [AppModule],
-  }).compile();
+  });
+  if (customize) builder = customize(builder);
+  const moduleRef: TestingModule = await builder.compile();
 
   const app = moduleRef.createNestApplication<INestApplication<App>>();
   app.setGlobalPrefix(appConfig.apiPrefix);

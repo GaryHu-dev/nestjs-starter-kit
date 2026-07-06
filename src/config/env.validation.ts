@@ -43,7 +43,11 @@ export const envValidationSchema = Joi.object({
     .when('NODE_ENV', { is: 'production', then: Joi.number().integer().min(10).max(31) }),
 
   JWT_SECRET: Joi.string().min(32).required(),
-  JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+  // Must differ from JWT_SECRET so a leak of one secret can't forge the other
+  // token class (defence-in-depth on top of the type/audience checks).
+  JWT_REFRESH_SECRET: Joi.string().min(32).invalid(Joi.ref('JWT_SECRET')).required().messages({
+    'any.invalid': 'JWT_REFRESH_SECRET must differ from JWT_SECRET',
+  }),
   JWT_EXPIRES_IN: Joi.string()
     .pattern(/^\d+\s*(ms|s|m|h|d|w|y)$/)
     .default('15m'),

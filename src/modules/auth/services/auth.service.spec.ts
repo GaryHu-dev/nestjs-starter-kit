@@ -58,6 +58,8 @@ const makeAuthRepo = () => ({
 const makePasswordService = () => ({
   hash: jest.fn().mockResolvedValue('hashed'),
   compare: jest.fn(),
+  hashToken: jest.fn().mockResolvedValue('hashed-token'),
+  compareToken: jest.fn(),
 });
 
 const makeTokenService = () => ({

@@ -38,7 +38,11 @@ export class EmailVerificationService {
       },
     );
 
-    const link = `${this.configService.getOrThrow<string>('app.url')}/api/v1/auth/verify-email?token=${token}`;
+    // Link to the frontend verification page, not the API: the emailed link is
+    // opened with a GET, but the verify endpoint is POST-only (and GET links get
+    // pre-fetched by mail scanners). The page reads the token and POSTs it to
+    // POST /auth/verify-email.
+    const link = `${this.configService.getOrThrow<string>('frontend.url')}/verify-email?token=${token}`;
 
     await this.emailSender.send({
       to: email,
@@ -56,6 +60,7 @@ export class EmailVerificationService {
       const claims = await this.jwtService.verifyAsync<EmailVerificationClaims>(token, {
         issuer: this.configService.getOrThrow<string>('jwt.issuer'),
         audience: EMAIL_VERIFICATION_AUDIENCE,
+        algorithms: ['HS256'],
       });
       if (claims.purpose !== EMAIL_VERIFICATION_AUDIENCE) {
         throw new UnauthorizedException('Invalid verification token');

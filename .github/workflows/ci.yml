@@ -67,7 +67,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm lint:ci
 
       - name: Typecheck (incl. tests)
         run: pnpm typecheck

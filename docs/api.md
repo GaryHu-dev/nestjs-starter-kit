@@ -63,6 +63,13 @@ Base path `/api/v1/auth`.
 | POST | `/auth/change-password` | Bearer | Change the local account password. Body: `currentPassword`, `newPassword`. Revokes existing sessions. `204 No Content`. |
 | POST | `/auth/verify-email/request` | Public | Send (or resend) an email-verification link. Body: `email`. Always `204` (no account enumeration). |
 | POST | `/auth/verify-email` | Public | Confirm an email address. Body: `token` (from the emailed link). `204 No Content`. |
+
+> **Email links point at your frontend, not this API.** The verification email
+> links to `${FRONTEND_URL}/verify-email?token=…`. That page reads the token and
+> `POST`s it to `/auth/verify-email`. The endpoint is intentionally POST-only
+> (an emailed GET link would be consumed by mail-scanner prefetching and would
+> leak the token into browser history / access logs). This starter ships the API
+> only — the `/verify-email` page is yours to build.
 | GET | `/auth/google` | Public | Start the Google OAuth flow (redirects to Google). |
 | GET | `/auth/google/callback` | Public | Google OAuth callback. Returns tokens + profile. |
 | GET | `/auth/github` | Public | Start the GitHub OAuth flow (redirects to GitHub). |

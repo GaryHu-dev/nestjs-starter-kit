@@ -95,6 +95,16 @@ describe('TokenService', () => {
     it('throws on an invalid token', async () => {
       await expect(tokenService.verify('invalid.token.here')).rejects.toThrow();
     });
+
+    it('rejects a token signed with a non-HS256 algorithm (algorithm pinned)', async () => {
+      // Same secret, different algorithm. Without a pinned `algorithms` list this
+      // would verify; pinning HS256 blocks future algorithm-confusion attacks.
+      const foreign = new JwtService({ secret: SECRET }).sign(
+        { ...makePayload(), type: AUTH_TOKEN_TYPE.ACCESS },
+        { algorithm: 'HS384', issuer: 'nestjs-starter-kit', audience: 'nestjs-starter-kit' },
+      );
+      await expect(tokenService.verify(foreign)).rejects.toThrow();
+    });
   });
 
   describe('decode', () => {

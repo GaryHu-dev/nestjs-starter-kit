@@ -9,8 +9,8 @@ import type { ChangePasswordDto } from '../dto/request/change-password.dto';
 import type { LoginDto } from '../dto/request/login.dto';
 import type { RegisterDto } from '../dto/request/register.dto';
 import type { AuthTokenDto } from '../dto/response/auth-token.dto';
-import type { LoginResponseDto } from '../dto/response/login-response.dto';
-import type { ProfileDto } from '../dto/response/profile.dto';
+import { LoginResponseDto } from '../dto/response/login-response.dto';
+import { ProfileDto } from '../dto/response/profile.dto';
 import { EmailVerificationService } from './email-verification.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
@@ -162,7 +162,7 @@ export class AuthService {
   async currentUser(userId: string, provider: AuthProvider): Promise<ProfileDto> {
     const user = await this.authRepository.findUserById(userId);
     if (!user) throw new NotFoundException('User not found');
-    return this.toUserResponse(user, provider);
+    return ProfileDto.from(user, provider);
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
@@ -293,21 +293,7 @@ export class AuthService {
   ): Promise<LoginResponseDto> {
     const tokens = await this.issueTokens(user.id, user.email, provider, user.tokenVersion);
     await this.storeRefreshTokenHash(identityId, tokens.refreshToken);
-    return { tokens, user: this.toUserResponse(user, provider) };
-  }
-
-  private toUserResponse(user: AuthUserView, provider: AuthProvider): ProfileDto {
-    return {
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      displayName: user.displayName ?? undefined,
-      avatarUrl: user.avatarUrl ?? undefined,
-      emailVerified: user.emailVerified,
-      status: user.status,
-      provider,
-    };
+    return LoginResponseDto.from(tokens, user, provider);
   }
 
   private async issueTokens(
@@ -325,7 +311,7 @@ export class AuthService {
   }
 
   private async storeRefreshTokenHash(identityId: string, refreshToken: string): Promise<void> {
-    const hash = await this.passwordService.hash(refreshToken);
+    const hash = await this.passwordService.hashToken(refreshToken);
     await this.authRepository.updateIdentityRefreshToken(identityId, hash);
   }
 }

@@ -43,4 +43,27 @@ describe('PasswordService', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('token hashing', () => {
+    it('round-trips a long token', async () => {
+      const token = 'a'.repeat(200);
+      const hash = await service.hashToken(token);
+      expect(await service.compareToken(token, hash)).toBe(true);
+    });
+
+    it('distinguishes tokens that share a 72-byte prefix (no bcrypt truncation)', async () => {
+      // bcrypt silently truncates its input at 72 bytes. Refresh tokens are JWTs
+      // whose first 72 bytes (header + start of a fixed-order payload) are
+      // identical for a given user, so hashing the raw token would let a stale
+      // token pass verification against a rotated one. Pre-digesting with SHA-256
+      // must fold the whole token into the hash.
+      const sharedPrefix = 'x'.repeat(80);
+      const tokenA = `${sharedPrefix}.AAAA`;
+      const tokenB = `${sharedPrefix}.BBBB`;
+      const hash = await service.hashToken(tokenA);
+
+      expect(await service.compareToken(tokenA, hash)).toBe(true);
+      expect(await service.compareToken(tokenB, hash)).toBe(false);
+    });
+  });
 });
